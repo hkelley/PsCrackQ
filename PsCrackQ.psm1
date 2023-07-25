@@ -100,7 +100,7 @@ Function Invoke-CrackQTask
 
     $uri = "{0}api/tasks" -f $script:CrackQApiSession.Url
     $result = Invoke-RestMethod -Uri $uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:CrackQApiSession.SessionVariable -Headers $script:CrackQApiSession.Headers
-    $stopwatch =  [system.diagnostics.stopwatch]::StartNew()
+    $stopwatch =  [system.diagnostics.stopwatch]::new()
 
     if(-not ($jobId = $result.jobs[0]))
     {
@@ -114,9 +114,8 @@ Function Invoke-CrackQTask
         Write-Warning ($job | ConvertTo-Json )
         throw "Job {0} not started on CrackQ" -f $jobId
     }
-
     $jobTimeoutSpan =  [timespan]::FromSeconds($jobSubmission.timeout)
-    Write-Host ("Job {0} started on CrackQ with a timeout of {1:hh}h:{1:mm}m" -f $jobId,([datetime]$jobTimeoutSpan.Ticks))
+    Write-Host ("Job {0} submitted to CrackQ using the template timeout of {1:hh}h:{1:mm}m" -f $jobId,([datetime]$jobTimeoutSpan.Ticks))
 
     # Wait 60s for the job to initialze and come up with an ETA
     Start-Sleep -Seconds 60
@@ -126,8 +125,12 @@ Function Invoke-CrackQTask
     {        
         $job = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers
         Write-Host ("Job {0} in status {1}.  Estimated time remaining: {2} / {3} " -f $jobId,$job.Status,$job.'HC State'.'HC State'.'ETA (Relative)',$job.'HC State'.'HC State'.'ETA (Absolute)')
-        if($job.Status -eq "started")
+        if($job.Status -ne "finished")
         {
+            # Don't start the "watchdog" timer until the job is listed as started.
+            if($job.Status -eq "started") {
+                $stopwatch.Start()
+            }
             Start-Sleep -Seconds (5*60)
         }
     } while ( ("started","queued") -contains $job.Status -and ($stopwatch.ElapsedMilliseconds/1000) -lt ($jobSubmission.timeout + 10*60))
