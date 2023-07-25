@@ -1,10 +1,4 @@
-﻿$script:CrackQApiSession = [ordered]@{
-    Url             = $null
-    SessionVariable     = $null
-    Headers = $null
-}
-
-Function Connect-CrackQ
+﻿Function Connect-CrackQ
 {
     param
     (
@@ -12,7 +6,11 @@ Function Connect-CrackQ
         , [Parameter(Mandatory = $true)] [pscredential] $Credential        
     )
 
-    $script:CrackQApiSession.Url = $CrackQUrl
+    $script:CrackQApiSession = [ordered]@{
+        Url             = $CrackQUrl
+        SessionVariable     = $null
+        Headers = $null
+    }
 
     # Get a CSRF token
     $uri = "{0}api/login" -f $script:CrackQApiSession.Url
@@ -42,6 +40,8 @@ Function Disconnect-CrackQ
 {
     $uri = "{0}api/logout" -f $script:CrackQApiSession.Url
     Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers | Out-Null
+
+    $script:CrackQApiSession = $null
 }
 
 Function Get-CrackQTemplate
@@ -78,7 +78,7 @@ Function Invoke-CrackQTask
     )
 
     # Use the template as the starting point for the job
-    $jobSubmission = $template.Details
+    $jobSubmission = $template.Details.PSObject.Copy()
     $jobSubmission.PSObject.Properties.Remove("stats")
     foreach($p in ($jobSubmission.PSObject.Properties | ?{$_.Value -eq "None"}))
     {
@@ -86,7 +86,7 @@ Function Invoke-CrackQTask
     }
 
     # Add mandatory properties
-    $jobSubmission | Add-Member -NotePropertyName "name" -NotePropertyValue ("{0} using template {1}" -f $jobRef,$TemplateName)
+    $jobSubmission | Add-Member -NotePropertyName "name" -NotePropertyValue ("{0} using template {1}" -f $jobRef,$Template.Name)
     $jobSubmission | Add-Member -NotePropertyName "disable_brain" -NotePropertyValue $false
     $jobSubmission | Add-Member -NotePropertyName "username" -NotePropertyValue $false
     $jobSubmission | Add-Member -NotePropertyName "hash_mode" -NotePropertyValue $HashMode
@@ -107,9 +107,11 @@ Function Invoke-CrackQTask
         throw "Job not submitted to CrackQ"
     }
 
+    Start-Sleep -Seconds 5
     $uri = "{0}api/queuing/{1}" -f $script:CrackQApiSession.Url,$jobId
     if (-not (     ($job = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers) -and ("started","finished") -contains $job.Status ))
     {
+        Write-Warning ($job | ConvertTo-Json )
         throw "Job {0} not started on CrackQ" -f $jobId
     }
 
@@ -123,7 +125,7 @@ Function Invoke-CrackQTask
     do
     {        
         $job = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers
-        Write-Host ("Job {0} in status {1}.  Estimated time remaining: {2} / {3} " -f $jobId,$job.Status,$job."HC State"."ETA (Relative)",$job."HC State"."ETA (Absolute)")
+        Write-Host ("Job {0} in status {1}.  Estimated time remaining: {2} / {3} " -f $jobId,$job.Status,$job.'HC State'.'HC State'.'ETA (Relative)',$job.'HC State'.'HC State'.'ETA (Absolute)')
         if($job.Status -eq "started")
         {
             Start-Sleep -Seconds (5*60)
