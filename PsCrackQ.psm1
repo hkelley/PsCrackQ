@@ -130,7 +130,7 @@ Function Invoke-CrackQTask
         {
             Start-Sleep -Seconds (5*60)
         }
-    } while ( $job.Status -eq "started" -and ($stopwatch.ElapsedMilliseconds/1000) -lt ($jobSubmission.timeout + 10*60))
+    } while ( ("started","queued") -contains $job.Status -and ($stopwatch.ElapsedMilliseconds/1000) -lt ($jobSubmission.timeout + 10*60))
     $stopwatch.Stop()
 
     return $job
