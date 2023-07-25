@@ -9,8 +9,7 @@ Function Connect-CrackQ
     param
     (
           [Parameter(Mandatory = $true)] [System.Uri] $CrackQUrl
-        , [Parameter(Mandatory = $true)] [string] $User
-        , [Parameter(Mandatory = $true)] [string] $Pass
+        , [Parameter(Mandatory = $true)] [pscredential] $Credential        
     )
 
     $script:CrackQApiSession.Url = $CrackQUrl
@@ -32,8 +31,8 @@ Function Connect-CrackQ
         }
 
     $body = [pscustomobject] @{
-            user = $User
-            password = $Pass
+            user = $Credential.UserName
+            password = $Credential.GetNetworkCredential().Password
         } | ConvertTo-Json
 
     Invoke-RestMethod -Uri $uri -Method Post -ContentType "application/json" -Body $body -WebSession $script:CrackQApiSession.SessionVariable -Headers $script:CrackQApiSession.Headers  | Out-Null
@@ -114,31 +113,25 @@ Function Invoke-CrackQTask
         throw "Job {0} not started on CrackQ" -f $jobId
     }
 
-    $jobTimeout =  [timespan]::FromMinutes($jobSubmission.timeout)
-    Write-Host ("Job {0} started on CrackQ with a timeout of {1:hh:mm}" -f $jobId,([datetime]$jobTimeout.Ticks))
+    $jobTimeoutSpan =  [timespan]::FromSeconds($jobSubmission.timeout)
+    Write-Host ("Job {0} started on CrackQ with a timeout of {1:hh}h:{1:mm}m" -f $jobId,([datetime]$jobTimeoutSpan.Ticks))
+
+    # Wait 60s for the job to initialze and come up with an ETA
+    Start-Sleep -Seconds 60
 
     # Poll for job status
     do
-    {
-        Start-Sleep -Seconds (5*60)
-        Write-Host ("Job {0} in status {1}" -f $jobId,$job.Status)
+    {        
         $job = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers
-
+        Write-Host ("Job {0} in status {1}.  Estimated time remaining: {2} / {3} " -f $jobId,$job.Status,$job."HC State"."ETA (Relative)",$job."HC State"."ETA (Absolute)")
+        if($job.Status -eq "started")
+        {
+            Start-Sleep -Seconds (5*60)
+        }
     } while ( $job.Status -eq "started" -and ($stopwatch.ElapsedMilliseconds/1000) -lt ($jobSubmission.timeout + 10*60))
     $stopwatch.Stop()
 
-    <#
-    Status        : started
-    Result        : 
-
-    Status        : finished
-    Result        : Cracked
-    Cracked       : {22386f282a56f5695b3d2d9f9ec7e3d7:spice4352@, aeef705bc4eef3c0a1111ce97dd61c1d:June2018}
-    #>
-
-    $job
-    $job.Cracked
-    
+    return $job
 }
 
 Export-ModuleMember -Function Connect-CrackQ
