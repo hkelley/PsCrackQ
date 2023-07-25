@@ -109,7 +109,7 @@ Function Invoke-CrackQTask
 
     Start-Sleep -Seconds 5
     $uri = "{0}api/queuing/{1}" -f $script:CrackQApiSession.Url,$jobId
-    if (-not (     ($job = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers) -and ("started","finished") -contains $job.Status ))
+    if (-not (     ($job = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers) -and ("started","finished","queued") -contains $job.Status ))
     {
         Write-Warning ($job | ConvertTo-Json )
         throw "Job {0} not started on CrackQ" -f $jobId
