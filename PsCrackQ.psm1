@@ -14,7 +14,7 @@
 
     # Get a CSRF token
     $uri = "{0}api/login" -f $script:CrackQApiSession.Url
-    Invoke-RestMethod -Uri $uri -Method Options -ContentType "application/json" -SessionVariable sv
+    Invoke-RestMethod -Uri $uri -Method Options -ContentType "application/json" -SessionVariable sv | Out-Null
     # From https://hochwald.net/get-cookies-from-powershell-webrequestsession/
     $cookieInfoObject = $sv.Cookies.GetType().InvokeMember('m_domainTable', [Reflection.BindingFlags]::NonPublic -bor [Reflection.BindingFlags]::GetField -bor [Reflection.BindingFlags]::Instance, $null, $sv.Cookies, @())
     if(-not ($csrfCookie = $cookieInfoObject.Values.Values  | ?{$_.Name -eq "csrftoken"}))
