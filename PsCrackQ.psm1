@@ -139,7 +139,33 @@ Function Invoke-CrackQTask
     return $job
 }
 
+Function Get-CrackQJob
+{
+    param
+    (
+          [Parameter(Mandatory = $true)] [string] $JobId
+    )
+
+    # Get the job summary
+    $uri = "{0}api/queuing/{1}" -f $script:CrackQApiSession.Url,$JobId
+    if (-not ($jobsummary = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers))
+    {
+        throw "Job {0} not found on CrackQ" -f $JobId
+    }
+
+    if($jobsummary.Status -eq "failed")
+    {
+        $uri = "{0}api/queuing/{1}less" -f $script:CrackQApiSession.Url,$jobsummary.Status
+        $jobs = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers
+
+         $jobsummary | Add-Member -NotePropertyName "Error" -NotePropertyValue $jobs."$jobid".Error
+    }
+
+    $jobsummary
+}
+
 Export-ModuleMember -Function Connect-CrackQ
 Export-ModuleMember -Function Disconnect-CrackQ
 Export-ModuleMember -Function Get-CrackQTemplate
+Export-ModuleMember -Function Get-CrackQJob
 Export-ModuleMember -Function Invoke-CrackQTask
