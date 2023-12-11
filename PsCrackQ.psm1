@@ -11,17 +11,25 @@
         SessionVariable     = $null
         Headers = $null
     }
-
+	
     # Get a CSRF token
+	$sv = $null
     $uri = "{0}api/login" -f $script:CrackQApiSession.Url
-    Invoke-RestMethod -Uri $uri -Method Options -ContentType "application/json" -SessionVariable sv | Out-Null
+	Write-Verbose "url pre-request: " $uri
+    Invoke-RestMethod -Uri $uri -Method Options -ContentType "application/json" -SessionVariable sv -ErrorAction Stop  #| Out-Null
+	Write-Verbose "url post-request: " $uri
+	Write-Verbose "type " $sv.Cookies
+	if(-not $sv.Cookies ) {
+        throw "No cookies found in session variable for $uri"
+    }
     # From https://hochwald.net/get-cookies-from-powershell-webrequestsession/
     $cookieInfoObject = $sv.Cookies.GetType().InvokeMember('m_domainTable', [Reflection.BindingFlags]::NonPublic -bor [Reflection.BindingFlags]::GetField -bor [Reflection.BindingFlags]::Instance, $null, $sv.Cookies, @())
     if(-not ($csrfCookie = $cookieInfoObject.Values.Values  | ?{$_.Name -eq "csrftoken"}))
     {
-        throw "Unable to retrieve csrftoken from $CrackqUrl"
+        throw "Unable to retrieve csrftoken from $uri"
     }
-
+	Write-Verbose "cookie:" $csrfCookie.Value
+	
     $script:CrackQApiSession.SessionVariable = $sv
 
     $script:CrackQApiSession.Headers = @{
@@ -108,8 +116,7 @@ Function Invoke-CrackQTask
     }
 
     Start-Sleep -Seconds 5
-    $uri = "{0}api/queuing/{1}" -f $script:CrackQApiSession.Url,$jobId
-    if (-not (     ($job = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers) -and ("started","finished","queued") -contains $job.Status ))
+    if (-not ( ($job = Get-CrackQJob -JobId $jobId) -and ("started","finished","queued") -contains $job.Status ))
     {
         Write-Warning ($job | ConvertTo-Json )
         throw "Job {0} not started on CrackQ" -f $jobId
@@ -123,7 +130,8 @@ Function Invoke-CrackQTask
     # Poll for job status
     do
     {        
-        $job = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers
+        # $job = Invoke-RestMethod -Uri $uri -Method Get -ContentType "application/json" -WebSession $script:CrackQApiSession.SessionVariable  -Headers $script:CrackQApiSession.Headers
+        $job = Get-CrackQJob -JobId $jobId
         Write-Host ("Job {0} in status {1}.  Estimated time remaining: {2} / {3} " -f $jobId,$job.Status,$job.'HC State'.'HC State'.'ETA (Relative)',$job.'HC State'.'HC State'.'ETA (Absolute)')
         if($job.Status -ne "finished")
         {
