@@ -15,10 +15,10 @@
     # Get a CSRF token
 	$sv = $null
     $uri = "{0}api/login" -f $script:CrackQApiSession.Url
-	Write-Verbose "url pre-request: " $uri
-    Invoke-RestMethod -Uri $uri -Method Options -ContentType "application/json" -SessionVariable sv -ErrorAction Stop  #| Out-Null
-	Write-Verbose "url post-request: " $uri
-	Write-Verbose "type " $sv.Cookies
+	Write-Verbose ("url pre-request: " + $uri)
+    Invoke-RestMethod -Uri $uri -Method Options -ContentType "application/json" -SessionVariable sv -ErrorAction Stop | Out-Null
+	Write-Verbose ("url post-request: " + $uri)
+	Write-Verbose ("type " + $sv.Cookies)
 	if(-not $sv.Cookies ) {
         throw "No cookies found in session variable for $uri"
     }
@@ -28,7 +28,7 @@
     {
         throw "Unable to retrieve csrftoken from $uri"
     }
-	Write-Verbose "cookie:" $csrfCookie.Value
+	Write-Verbose ("cookie:" + $csrfCookie.Value)
 	
     $script:CrackQApiSession.SessionVariable = $sv
 
